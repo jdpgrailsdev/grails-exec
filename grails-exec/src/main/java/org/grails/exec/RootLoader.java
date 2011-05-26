@@ -83,6 +83,14 @@ public class RootLoader extends URLClassLoader {
     }
 
     /**
+     * constructs a new RootLoader with the system class loader as the parent loader 
+     * and the given urls as the classpath
+     */
+    public RootLoader(URL[] urls) {
+        this(urls, ClassLoader.getSystemClassLoader());
+    }
+    
+    /**
      * constructs a new RootLoader with a parent loader and an
      * array of URLs as classpath
      */
