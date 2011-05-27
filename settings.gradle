@@ -1,1 +1,1 @@
-include "grails-exec", "grails-exec-ant"
+include "grails-exec", "grails-exec-ant", "grails-exec-testsuite"

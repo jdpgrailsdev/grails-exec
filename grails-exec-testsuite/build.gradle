@@ -1,0 +1,86 @@
+description: "A test harness for grails-exec that can run with multiple Grails grailsVersions"
+
+dependsOn ":grails-exec"
+
+buildscript {
+    dependencies {
+        classpath project(":grails-exec")
+    }
+}
+
+dependencies { 
+    testCompile project(":grails-exec")
+}
+
+task test (overwrite: true) {}
+
+// no 1.3.5 because of GRAILS-6797 which prevents running tests
+testWith "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.6", "1.3.7"
+
+def testWith(String... grailsVersions) {
+    grailsVersions.each { grailsVersion ->
+
+        def versionQuirks = new org.grails.exec.GrailsVersion(grailsVersion)
+        
+        def grailsBootstrapClasspathName = "grailsBootstrap-$grailsVersion"
+        def grailsCompileClasspathName = "grailsCompile-$grailsVersion"
+        def grailsTestClasspathName = "grailsTest-$grailsVersion"
+        def grailsRuntimeClasspathName = "grailsRuntime-$grailsVersion"
+
+        def classpaths = [
+            bootstrap: grailsBootstrapClasspathName,
+            compile: grailsCompileClasspathName, 
+            test: grailsTestClasspathName, 
+            runtime: grailsRuntimeClasspathName
+        ]
+        
+        classpaths.each { type, config ->
+            configurations.add(config) {
+                description = "${type.capitalize()} Classpath for Grails $grailsVersion"
+            }
+        }
+
+        classpaths.bootstrapRuntime = "grailsBootstrapRuntime-$grailsVersion"
+        configurations.add(classpaths.bootstrapRuntime) {
+            description = "Bootstrap classpath for run-app and test-app"
+            extendsFrom configurations."$classpaths.bootstrap", configurations."$classpaths.runtime"
+        }
+        
+        dependencies {
+            ["bootstrap", "scripts"].each {
+                delegate."$grailsBootstrapClasspathName" "org.grails:grails-$it:${grailsVersion}"
+            }
+        
+            delegate."$grailsRuntimeClasspathName" "org.grails:grails-core:${grailsVersion}"
+            delegate."$grailsTestClasspathName" "org.grails:grails-test:${grailsVersion}"
+            
+            if (versionQuirks.requiresExplicitIvyDependency) {
+                delegate."$grailsBootstrapClasspathName" "org.apache.ivy:ivy:2.1.0"
+            }
+        }
+
+        def testTaskName = "test-against-$grailsVersion"
+        task (testTaskName, type: Test) {
+            description = "Runs the test suite against Grails $grailsVersion"
+            testReportDir = file("${project.testReportDir}-$grailsVersion")
+            testResultsDir = file("${project.testResultsDir}-$grailsVersion")
+            
+            ignoreFailures = true
+            
+            doFirst {
+                def workspace = file("$buildDir/grails-work/$grailsVersion")
+                assert !workspace.exists() || workspace.deleteDir()
+                assert workspace.mkdirs()
+                
+                def prefix = "grails.exec.testsuite"
+                systemProperty "${prefix}.grailsVersion", grailsVersion
+                systemProperty "${prefix}.workspace", workspace.absolutePath 
+                classpaths.each { type, config ->
+                    systemProperty "${prefix}.classpath.$type", project.configurations."$config".files*.absolutePath.join(":")
+                }
+            }
+        }
+        
+        tasks.test.dependsOn tasks.getByName(testTaskName)
+    }
+}
