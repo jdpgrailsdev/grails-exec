@@ -6,6 +6,10 @@ buildscript {
     dependencies {
         classpath project(":grails-exec")
     }
+    
+    repositories {
+        mavenRepo urls: "http://repository.codehaus.org"
+    }    
 }
 
 dependencies { 
